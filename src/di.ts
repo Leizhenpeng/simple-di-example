@@ -60,8 +60,7 @@ class AtomFactory {
                 moduleInstance[name] = instance;
             }
         }));
-
-        return moduleInstance;
+        return moduleInstance as T;
     }
 }
 

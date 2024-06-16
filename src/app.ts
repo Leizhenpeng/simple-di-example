@@ -22,13 +22,15 @@ class CatsController {
     providers: [CatsService],
     controllers: [CatsController]
 })
-class AppModule { }
+class AppModule {
+    constructor(public cat: CatsController) { }
+}
 
 async function main() {
-    const app = await AtomFactory.create<any>(AppModule, {
+    const app = await AtomFactory.create(AppModule, {
         debug: true
     });
-    console.log(app.cat.greet()); // 输出: Meow!
+    console.log(app.cat.greet());
 }
 
 main();
