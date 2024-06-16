@@ -23,14 +23,23 @@ class CatsController {
     controllers: [CatsController]
 })
 class AppModule {
-    constructor(public cat: CatsController) { }
+    // constructor(public cat: CatsController) { }
+}
+
+interface Constructor<T> {
+    new(...args: any[]): T;
+}
+
+function getController<T>(app: any, controller: Constructor<T>): T {
+    return app[controller.name] as T;
 }
 
 async function main() {
     const app = await AtomFactory.create(AppModule, {
         debug: true
     });
-    console.log(app.cat.greet());
+    const cat = getController(app, CatsController);
+    console.log(cat.greet());
 }
 
 main();
