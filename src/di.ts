@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import 'reflect-metadata';
 
 type Constructor<T = any> = new (...args: any[]) => T;
@@ -43,19 +45,18 @@ class AtomFactory {
 
         // 实例化 providers
         const providersMetadata = Reflect.getMetadata('module:providers', module) || [];
-        providersMetadata.forEach(provider => {
+        providersMetadata.forEach((provider: { new(...args: any[]): any; new(...args: any[]): unknown; }) => {
             if (!DIContainer.has(provider)) {
                 Injectable(provider);
             }
         });
 
-        // 实例化并注册 controllers
         const controllersMetadata = Reflect.getMetadata('module:controllers', module) || [];
-        controllersMetadata.forEach(controller => {
+        controllersMetadata.forEach((controller: Constructor) => {
             if (!DIContainer.has(controller)) {
                 Injectable(controller);
             }
-            const name = Reflect.getMetadata('control:name', controller);
+            const name = Reflect.getMetadata('control:name', controller) as keyof T;
             if (name) {
                 moduleInstance[name] = DIContainer.get(controller);
             }
@@ -66,4 +67,10 @@ class AtomFactory {
 }
 
 
-export { Injectable, Module, get, Control, AtomFactory };
+export {
+    Injectable,
+    Module,
+    Control,
+    get,
+    AtomFactory
+};

@@ -25,7 +25,7 @@ class CatsController {
 class AppModule { }
 
 async function main() {
-    const app = await AtomFactory.create(AppModule, {
+    const app = await AtomFactory.create<any>(AppModule, {
         debug: true
     });
     console.log(app.cat.greet()); // 输出: Meow!
