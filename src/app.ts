@@ -2,7 +2,7 @@
 import 'reflect-metadata';
 import { Injectable, Module, Control, AtomFactory } from './di';
 
-@Injectable
+@Injectable()
 class CatsService {
     meow() {
         return 'Meow!';
