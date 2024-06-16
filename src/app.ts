@@ -47,37 +47,54 @@ async function get<T>(constructor: Constructor<T>): Promise<T> {
     return DIContainer.get(constructor);
 }
 
+type ModuleMetadata = {
+    providers?: Constructor[];
+    controllers?: Constructor[];
+    imports?: Constructor[];
+};
+
+function getModuleMetadata(module: Constructor): ModuleMetadata {
+    return {
+        providers: Reflect.getMetadata('module:providers', module) || [],
+        controllers: Reflect.getMetadata('module:controllers', module) || [],
+        imports: Reflect.getMetadata('module:imports', module) || []
+    };
+}
+
 class AtomFactory {
-    static async create<T>(module: Constructor<T>, options: any): Promise<T & Record<string, any>> {
+    static async create<T>(module: Constructor<T>, options: any = {}): Promise<T> {
         const moduleInstance = new module();
         DIContainer.set(module, moduleInstance);
 
-        // 处理 imports
-        const importsMetadata = Reflect.getMetadata('module:imports', module) || [];
+        const metadata = getModuleMetadata(module);
+        const importsMetadata = metadata.imports || [];
+        const providersMetadata = metadata.providers || [];
+        const controllersMetadata = metadata.controllers || [];
+
+        // 实例化 imports
         await Promise.all(importsMetadata.map(async (importedModule: Constructor) => {
-            await AtomFactory.create(importedModule, options);
+            const importedInstance = await AtomFactory.create(importedModule, options);
+            Object.assign(moduleInstance as object, importedInstance);
         }));
 
         // 实例化 providers
-        const providersMetadata = Reflect.getMetadata('module:providers', module) || [];
         await Promise.all(providersMetadata.map(resolveDependencies));
 
-        const controllersMetadata = Reflect.getMetadata('module:controllers', module) || [];
+        // 实例化 controllers
         await Promise.all(controllersMetadata.map(async (controller: Constructor) => {
             const instance = await resolveDependencies(controller);
-            const name = Reflect.getMetadata('control:name', controller) as keyof T;
+            const name = Reflect.getMetadata('control:name', controller);
             if (name) {
                 (moduleInstance as any)[name] = instance;
             }
         }));
 
-        // 动态添加控制器属性
-        for (const [name, controller] of controllerMap.entries()) {
-            const instance = await resolveDependencies(controller);
-            (moduleInstance as any)[name] = instance;
+        // 处理 options 配置，例如 debug
+        if (options.debug) {
+            console.log(`Module ${module.name} initialized with options:`, options);
         }
 
-        return moduleInstance as T & Record<string, any>;
+        return moduleInstance as T;
     }
 }
 
@@ -110,7 +127,6 @@ class CatsController {
     controllers: [CatsController]
 })
 class CatModule {
-    cat!: CatsController;
 }
 
 @Injectable()
@@ -134,23 +150,26 @@ class DogsController {
     controllers: [DogsController]
 })
 class DogModule {
-    dog!: DogsController;
 }
 
 @Module({
     imports: [CatModule, DogModule]
 })
 class AppModule {
-    constructor(public cat: CatsController, public dog: DogsController) {
-
-    }
+    constructor(
+        public cat: CatsController,
+        public dog: DogsController
+    ) { }
 }
+
+// 自动生成的接口
+
 
 async function main() {
     const app = await AtomFactory.create<AppModule>(AppModule, {
         debug: true
     });
-
+    app.cat.greet();
     console.log(app.cat.greet());
     console.log(app.dog.greet());
 }

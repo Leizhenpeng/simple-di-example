@@ -1,73 +1,101 @@
 import 'reflect-metadata';
 
+// 定义构造函数类型
 type Constructor<T = any> = new (...args: any[]) => T;
 
-const DIContainer = new Map<Constructor, any>();
+// DI容器模块
+class DIContainer {
+    private static container = new Map<Constructor, any>();
+
+    static async resolve<T>(constructor: Constructor<T>): Promise<T> {
+        if (this.container.has(constructor)) {
+            return this.container.get(constructor);
+        }
+        const paramTypes: Constructor[] = Reflect.getMetadata('design:paramtypes', constructor) || [];
+        const dependencies = await Promise.all(paramTypes.map(param => this.resolve(param)));
+        const instance = new constructor(...dependencies);
+        this.container.set(constructor, instance);
+        return instance;
+    }
+
+    static get<T>(constructor: Constructor<T>): T {
+        return this.container.get(constructor);
+    }
+
+    static set<T>(constructor: Constructor<T>, instance: T) {
+        this.container.set(constructor, instance);
+    }
+
+    static delete<T>(constructor: Constructor<T>) {
+        this.container.delete(constructor);
+    }
+}
 
 function Injectable(): ClassDecorator {
-    return function <T extends Function>(constructor: T) {
-        Reflect.defineMetadata('design:paramtypes', Reflect.getMetadata('design:paramtypes', constructor) || [], constructor);
+    return function (target: Function) {
+        // 装饰器逻辑（如果需要的话）
     };
 }
 
-function Module(options: { providers: Constructor[], controllers: Constructor[] }) {
-    return function <T extends Constructor>(constructor: T): T {
-        Reflect.defineMetadata('module:providers', options.providers, constructor);
-        Reflect.defineMetadata('module:controllers', options.controllers, constructor);
-        return constructor;
+// 模块解析器
+type ModuleMetadata = {
+    providers?: Constructor[];
+    controllers?: Constructor[];
+    imports?: Constructor[];
+};
+
+function Module(metadata: ModuleMetadata): ClassDecorator {
+    return function (target: Function) {
+        Reflect.defineMetadata('module:metadata', metadata, target);
     };
+}
+
+function getModuleMetadata(module: Constructor): ModuleMetadata {
+    return Reflect.getMetadata('module:metadata', module) || {};
+}
+
+class ModuleResolver {
+    static async resolveModule<T>(module: Constructor<T>): Promise<T> {
+        const moduleInstance = new module();
+        DIContainer.set(module, moduleInstance);
+
+        const metadata = getModuleMetadata(module);
+        const imports = metadata.imports || [];
+        const providers = metadata.providers || [];
+        const controllers = metadata.controllers || [];
+
+        await Promise.all(imports.map(importedModule => this.resolveModule(importedModule)));
+        await Promise.all(providers.map(provider => DIContainer.resolve(provider)));
+
+        await Promise.all(controllers.map(async (controller) => {
+            const instance = await DIContainer.resolve(controller);
+            const name = Reflect.getMetadata('control:name', controller);
+            if (name) {
+                (moduleInstance as any)[name] = instance;
+            }
+        }));
+
+        return moduleInstance as T;
+    }
+}
+
+// 控制器管理模块
+class ControllerRegistry {
+    private static controllers = new Map<string, Constructor>();
+
+    static register(name: string, controller: Constructor) {
+        this.controllers.set(name, controller);
+    }
+
+    static get(name: string): Constructor {
+        return this.controllers.get(name);
+    }
 }
 
 function Control(name: string) {
     return function (constructor: Constructor) {
         Reflect.defineMetadata('control:name', name, constructor);
-        Injectable()(constructor); // 确保控制器也是可注入的
+        ControllerRegistry.register(name, constructor);
+        Injectable()(constructor);
     };
 }
-
-async function resolveDependencies<T>(constructor: Constructor<T>): Promise<T> {
-    if (DIContainer.has(constructor)) {
-        return DIContainer.get(constructor);
-    }
-    const paramTypes: Constructor[] = Reflect.getMetadata('design:paramtypes', constructor);
-    const dependencies = await Promise.all(paramTypes.map(resolveDependencies));
-    const instance = new constructor(...dependencies);
-    DIContainer.set(constructor, instance);
-    return instance;
-}
-
-async function get<T>(constructor: Constructor<T>): Promise<T> {
-    if (!DIContainer.has(constructor)) {
-        return resolveDependencies(constructor);
-    }
-    return DIContainer.get(constructor);
-}
-
-class AtomFactory {
-    static async create<T>(module: Constructor<T>, options: any): Promise<T> {
-        const moduleInstance = new module();
-        DIContainer.set(module, moduleInstance);
-
-        // 实例化 providers
-        const providersMetadata = Reflect.getMetadata('module:providers', module) || [];
-        await Promise.all(providersMetadata.map(resolveDependencies));
-
-        const controllersMetadata = Reflect.getMetadata('module:controllers', module) || [];
-        await Promise.all(controllersMetadata.map(async (controller: Constructor) => {
-            const instance = await resolveDependencies(controller);
-            const name = Reflect.getMetadata('control:name', controller) as keyof T;
-            if (name) {
-                moduleInstance[name] = instance;
-            }
-        }));
-        return moduleInstance as T;
-    }
-}
-
-export {
-    Injectable,
-    Module,
-    Control,
-    get,
-    AtomFactory
-};
