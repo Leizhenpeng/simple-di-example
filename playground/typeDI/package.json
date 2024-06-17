@@ -1,0 +1,16 @@
+{
+  "name": "type-di-example",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsup src/app.ts --format cjs --minify --dts --watch",
+    "start": "nodemon dist/app.js"
+  },
+  "keywords": [],
+  "author": "RiverRay",
+  "license": "ISC",
+  "dependencies": {
+    "typedi": "^0.10.0"
+  }
+}
