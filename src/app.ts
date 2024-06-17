@@ -169,6 +169,10 @@ async function main() {
     const app = await AtomFactory.create<AppModule>(AppModule, {
         debug: true
     });
+
+    const catControl = await get(CatsController)
+    catControl.greet()
+
     app.cat.greet();
     console.log(app.cat.greet());
     console.log(app.dog.greet());
