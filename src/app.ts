@@ -61,8 +61,13 @@ function getModuleMetadata(module: Constructor): ModuleMetadata {
     };
 }
 
+
+interface IModule {
+    get<T>(constructor: Constructor<T>): Promise<T>;
+}
+
 class AtomFactory {
-    static async create<T>(module: Constructor<T>, options: any = {}): Promise<T> {
+    static async create<T extends IModule>(module: Constructor<T>, options: any = {}): Promise<T> {
         const moduleInstance = new module();
         DIContainer.set(module, moduleInstance);
 
@@ -89,12 +94,18 @@ class AtomFactory {
             }
         }));
 
+        // 添加一个类型安全的 get 方法
+        (moduleInstance as any).get = async <C>(constructor: Constructor<C>): Promise<C> => {
+            console.log('1231', 1231)
+            return await get(constructor);
+        };
+
         // 处理 options 配置，例如 debug
         if (options.debug) {
             console.log(`Module ${module.name} initialized with options:`, options);
         }
 
-        return moduleInstance as T;
+        return moduleInstance as (T);
     }
 }
 
@@ -156,10 +167,15 @@ class DogModule {
     imports: [CatModule, DogModule]
 })
 class AppModule {
+    async get<T>(constructor: Constructor<T>): Promise<T> {
+        return get(constructor);
+    }
     constructor(
         public cat: CatsController,
         public dog: DogsController
     ) { }
+
+
 }
 
 // 自动生成的接口
@@ -168,9 +184,9 @@ class AppModule {
 async function main() {
     const app = await AtomFactory.create<AppModule>(AppModule, {
         debug: true
-    });
+    })
 
-    const catControl = await get(CatsController)
+    const catControl = await app.get(CatsController)
     catControl.greet()
 
     app.cat.greet();
