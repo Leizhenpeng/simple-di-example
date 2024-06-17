@@ -1,9 +1,8 @@
-// app.ts
-
+// app.t
+// https://github.com/typestack/typedi?tab=readme-ov-file
 import 'reflect-metadata';
 import { Service, Container } from 'typedi';
 
-// 定义一个服务
 @Service()
 class Logger {
     log(message: string) {
